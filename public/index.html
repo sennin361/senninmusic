@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>仙人Music 🎧</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root {
+      --bg: #121212;
+      --fg: #ffffff;
+      --accent: #ff9800;
+    }
+    [data-theme="light"] {
+      --bg: #ffffff;
+      --fg: #121212;
+    }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 1em;
+      transition: background 0.3s, color 0.3s;
+    }
+    header {
+      font-size: 2em;
+      text-align: center;
+      margin-bottom: 1em;
+      color: var(--accent);
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 1em;
+    }
+    input[type="text"],
+    button {
+      padding: 0.5em;
+      border: none;
+      border-radius: 5px;
+    }
+    input[type="text"] {
+      flex: 1;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    .track {
+      margin-bottom: 1.5em;
+      padding: 1em;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+    iframe {
+      width: 100%;
+      height: 166px;
+      border: none;
+    }
+    .track-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.5em;
+    }
+    .track-title {
+      font-size: 1.1em;
+    }
+  </style>
+</head>
+<body>
+  <header>🎵 仙人Music</header>
+
+  <div class="controls">
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="検索 (例: lofi, anime, chill)"
+      aria-label="検索キーワード"
+    />
+    <button onclick="search()">🔍</button>
+    <button onclick="toggleTheme()">🌙</button>
+    <button onclick="viewFavorites()">❤️ お気に入り</button>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    const CLIENT_ID = "YOUR_CLIENT_ID_HERE"; // ← SoundCloudのClient IDに置き換えてください
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const newTheme =
+        html.getAttribute("data-theme") === "light" ? "dark" : "light";
+      html.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+    }
+    if (localStorage.getItem("theme")) {
+      document.documentElement.setAttribute(
+        "data-theme",
+        localStorage.getItem("theme")
+      );
+    }
+
+    function toggleFavorite(url) {
+      let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+      if (favs.includes(url)) {
+        favs = favs.filter((x) => x !== url);
+      } else {
+        favs.push(url);
+      }
+      localStorage.setItem("favorites", JSON.stringify(favs));
+      viewFavorites();
+    }
+
+    function createTrackUI(track) {
+      return `
+    <div class="track">
+      <iframe
+        scrolling="no"
+        allow="autoplay"
+        src="https://w.soundcloud.com/player/?url=${encodeURIComponent(
+          track.permalink_url
+        )}&auto_play=true&loop=true"
+        title="${track.title} by ${track.user.username}"
+      ></iframe>
+      <div class="track-info">
+        <div class="track-title">🎶 ${track.title} by ${track.user.username}</div>
+        <button onclick="toggleFavorite('${track.permalink_url}')">❤️</button>
+      </div>
+    </div>
+  `;
+    }
+
+    async function search() {
+      const query = document.getElementById("searchInput").value;
+      if (!query.trim()) {
+        alert("検索キーワードを入力してください");
+        return;
+      }
+      const url = `https://api.soundcloud.com/tracks?q=${encodeURIComponent(
+        query
+      )}&client_id=${CLIENT_ID}&limit=5`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("APIエラー");
+        const data = await res.json();
+        const results = document.getElementById("results");
+        if (data.length === 0) {
+          results.innerHTML = "<p>曲が見つかりませんでした。</p>";
+          return;
+        }
+        results.innerHTML = data.map(createTrackUI).join("");
+      } catch (e) {
+        alert("検索に失敗しました。時間を置いて再度お試しください。");
+        console.error(e);
+      }
+    }
+
+    function viewFavorites() {
+      const favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+      const results = document.getElementById("results");
+      if (favs.length === 0) {
+        results.innerHTML = "<p>お気に入りはまだありません。</p>";
+        return;
+      }
+      results.innerHTML = favs
+        .map(
+          (url) => `
+    <div class="track">
+      <iframe
+        scrolling="no"
+        allow="autoplay"
+        src="https://w.soundcloud.com/player/?url=${encodeURIComponent(
+          url
+        )}&auto_play=true&loop=true"
+        title="お気に入りの曲"
+      ></iframe>
+      <div class="track-info">
+        <div class="track-title">❤️ お気に入りの曲</div>
+        <button onclick="toggleFavorite('${url}')">🗑️ 削除</button>
+      </div>
+    </div>
+  `
+        )
+        .join("");
+    }
+
+    // Service Worker登録（PWA対応）
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js");
+    }
+  </script>
+</body>
+</html>
